@@ -8,12 +8,13 @@ use core::convert::TryFrom;
 use core::mem;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
+use core::slice;
 
 use crate::bindings::*;
 use crate::xdp::Context;
 
 pub use crate::buf::Buffer;
-pub use redbpf_probes::net::NetworkError as Error;
+pub use redbpf_probes::net::{NetworkBuffer, NetworkError as Error};
 
 pub const BE_ETH_P_IP: __be16 = (ETH_P_IP as u16).to_be();
 pub const BE_ETH_P_IPV6: __be16 = (ETH_P_IPV6 as u16).to_be();
@@ -81,9 +82,9 @@ mod addr {
 
 #[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
-pub struct Header<T>(NonNull<T>);
+pub struct Layer<T>(NonNull<T>);
 
-impl<T> Deref for Header<T> {
+impl<T> Deref for Layer<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -91,29 +92,29 @@ impl<T> Deref for Header<T> {
     }
 }
 
-impl<T> DerefMut for Header<T> {
+impl<T> DerefMut for Layer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.0.as_mut() }
     }
 }
 
-impl<T> TryFrom<*const T> for Header<T> {
+impl<T> TryFrom<*const T> for Layer<T> {
     type Error = Error;
 
-    fn try_from(header: *const T) -> Result<Header<T>, Self::Error> {
-        Self::new(header as *mut _).ok_or(Error::Other)
+    fn try_from(hdr: *const T) -> Result<Layer<T>, Self::Error> {
+        Self::new(hdr as *mut _).ok_or(Error::Other)
     }
 }
 
-impl<T> TryFrom<*mut T> for Header<T> {
+impl<T> TryFrom<*mut T> for Layer<T> {
     type Error = Error;
 
-    fn try_from(header: *mut T) -> Result<Header<T>, Self::Error> {
-        Self::new(header).ok_or(Error::Other)
+    fn try_from(hdr: *mut T) -> Result<Layer<T>, Self::Error> {
+        Self::new(hdr).ok_or(Error::Other)
     }
 }
 
-impl<T> Header<T> {
+impl<T> Layer<T> {
     pub fn new(ptr: *mut T) -> Option<Self> {
         NonNull::new(ptr).map(Self)
     }
@@ -126,20 +127,31 @@ impl<T> Header<T> {
         self.0.as_ptr()
     }
 
-    pub fn next<H>(&self, ctx: &Context) -> Result<Header<H>, Error> {
-        unsafe { ctx.header_after(self) }
+    pub fn next<H>(&self, ctx: &Context) -> Result<Layer<H>, Error> {
+        unsafe { ctx.layer_after(self) }
+    }
+
+    pub fn payload(&self, ctx: &Context) -> Option<&[u8]> {
+        let start = (self.as_ptr() as usize) + mem::size_of::<T>();
+        if ctx.data_start() <= start && start <= ctx.data_end() {
+            Some(unsafe {
+                slice::from_raw_parts(start as *const _, ctx.data_end().saturating_sub(start))
+            })
+        } else {
+            None
+        }
     }
 }
 
-pub type EthHdr = Header<ethhdr>;
-pub type IPHdr = Header<iphdr>;
-pub type IPv6Hdr = Header<ipv6hdr>;
-pub type IcmpHdr = Header<icmphdr>;
-pub type Icmp6Hdr = Header<icmp6hdr>;
-pub type TcpHdr = Header<tcphdr>;
-pub type UdpHdr = Header<udphdr>;
+pub type Ethernet = Layer<ethhdr>;
+pub type IPv4 = Layer<iphdr>;
+pub type IPv6 = Layer<ipv6hdr>;
+pub type Icmp = Layer<icmphdr>;
+pub type Icmp6 = Layer<icmp6hdr>;
+pub type Tcp = Layer<tcphdr>;
+pub type Udp = Layer<udphdr>;
 
-impl EthHdr {
+impl Ethernet {
     pub fn proto(&self) -> u16 {
         u16::from(self.h_proto)
     }
@@ -150,7 +162,7 @@ impl EthHdr {
     }
 }
 
-impl IPHdr {
+impl IPv4 {
     pub fn fragmented(&self) -> bool {
         (self.frag_off & 0x3FFF) != 0
     }
@@ -161,7 +173,7 @@ impl IPHdr {
     }
 }
 
-impl IPv6Hdr {
+impl IPv6 {
     pub fn traffic_class(&self) -> u8 {
         ((self.priority() << 4) & 0xF0) | ((self.flow_lbl[0] >> 4) & 0x0F)
     }

@@ -6,11 +6,14 @@
 // copied, modified, or distributed except according to those terms.
 
 #![deny(clippy::all)]
-#![no_std]
+#![cfg_attr(not(feature = "use_std"), no_std)]
 
 pub mod bindings;
 mod buf;
 mod csum;
+mod error;
+pub mod helpers;
+pub mod maps;
 pub mod net;
 pub mod prelude;
 pub mod xdp;

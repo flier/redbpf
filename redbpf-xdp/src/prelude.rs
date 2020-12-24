@@ -15,10 +15,9 @@
 pub use cty::*;
 
 pub use redbpf_macros::{map, program, xdp};
-pub use redbpf_probes::helpers::*;
-pub use redbpf_probes::maps::{HashMap, PerfMapFlags};
-pub use redbpf_probes::net::NetworkBuffer;
 
 pub use crate::bindings::*;
+pub use crate::helpers::*;
+pub use crate::maps::{Array, HashMap, PerCpuArray, PerfMap, PerfMapFlags, ProgArray};
 pub use crate::net::{self, *};
 pub use crate::xdp::{self, Action, Context};

@@ -5,9 +5,9 @@ use core::slice;
 use redbpf_probes::helpers::bpf_csum_diff;
 
 use crate::bindings::*;
-use crate::net::IPHdr;
+use crate::net::IPv4;
 
-impl IPHdr {
+impl IPv4 {
     pub fn compute_checksum(&mut self) {
         self.check = 0;
         self.check = ipv4_csum_inline(self.as_ptr(), 0);

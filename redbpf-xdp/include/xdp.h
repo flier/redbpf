@@ -21,4 +21,4 @@
 #include <linux/if_ether.h>
 #pragma clang diagnostic pop
 
-#include <linux/skbuff.h>
+#include <uapi/linux/bpf.h>
