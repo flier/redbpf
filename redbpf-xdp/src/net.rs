@@ -131,7 +131,7 @@ impl<T> Layer<T> {
         unsafe { ctx.layer_after(self) }
     }
 
-    pub fn payload(&self, ctx: &Context) -> Option<&[u8]> {
+    pub fn payload<'a>(&self, ctx: &'a Context) -> Option<&'a [u8]> {
         let start = (self.as_ptr() as usize) + mem::size_of::<T>();
         if ctx.data_start() <= start && start <= ctx.data_end() {
             Some(unsafe {
